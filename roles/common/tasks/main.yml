@@ -1,0 +1,90 @@
+---
+# Configure DNS
+- name: Configure DNS Search Domain
+  lineinfile: dest=/etc/network/interfaces line="dns-search {{ DomainSearch }}"
+  register: DNS
+
+- name: Configure Nameservers
+  lineinfile: dest=/etc/network/interfaces line="dns-nameservers {{ NameServers | join(' ') }}"
+  register: DNS
+
+- name: Reboot Machine
+  command: shutdown -r now "Ansible reboot for DNS Update"
+  when: DNS
+
+- name: waiting for server to come back
+  local_action:
+    module: wait_for
+      host={{ inventory_hostname }}
+      state=started
+      port=22
+  sudo: false
+
+# Updatee apt package list
+- name: apt-get update
+  sudo: yes
+  apt: update_cache=yes
+  tags: common
+
+# Configure NTP
+- name: Install NTP
+  apt: pkg=ntp state=present
+  sudo: yes
+
+- name: Configure NTP
+  template: src=ntp.conf.j2 dest=/etc/ntp.conf
+  sudo: yes
+  notify: restart_ntp
+
+## Configure AD
+#- name: Download PBIS
+#  get_url: url=http://download.beyondtrust.com/PBISO/8.2.1/linux.deb.i386/pbis-open-8.2.1.2979.linux.x86.deb.sh dest=/tmp/pbis.deb.sh
+
+- name: Copy PBIS package 
+  copy: src=pbis-open-8.2.1.2979.linux.x86_64.deb.sh dest=/var/tmp/pbis.deb.sh mode=755
+
+- name: Install PBIS package
+  shell: yes 'y' | sudo /var/tmp/pbis.deb.sh 
+  sudo: yes  
+
+- name: Join machine to domain
+  command: /opt/pbis/bin/domainjoin-cli join --ou {{ OU }} {{ Domain }} {{ DomainAdmin }} {{ DomainAdminPass }}
+  register: reboot
+
+- name: Configure PBIS
+  command: /opt/pbis/bin/domainjoin-cli configure --enable {{ item }}
+  with_items:
+  - nsswitch
+  - pam
+  - ssh
+  register: reboot
+
+- command: /opt/pbis/bin/config {{ item }}
+  with_items:
+  - HomeDirTemplate %H/%D/%U
+  - AssumeDefaultDomain true
+  - LoginShellTemplate /bin/bash
+  register: reboot
+
+- name: Configure Group
+  command: /opt/pbis/bin/config RequireMembershipOf {{ AccessGrp | join(" ")  }}
+  register: reboot
+
+- name: Configure Sudo
+  lineinfile: dest=/etc/sudoers backup=yes state=present line="%{{ item }}  ALL=(ALL:ALL) NOPASSWD:ALL"
+  register: reboot
+  with_items: SudoGrp
+
+- name: Reboot Machine
+  command: shutdown -r now "Ansible reboot for joining AD"
+  when: reboot
+
+- name: Waiting for server to come back
+  local_action: 
+    module: wait_for 
+      host={{ inventory_hostname }} 
+      state=started
+      port=22
+  sudo: false
+
+

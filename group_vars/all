@@ -1,0 +1,22 @@
+# NTP 
+NTP: 
+  - 192.168.0.1
+  - 192.168.0.2
+  
+# AD
+Domain: MYDOMAIN.COM
+DomainAdmin: Administrator
+DomainAdminPass: #####
+OU: Ordinateurs/Serveurs
+AccessGrp: ['MYDOMAIN\\MONGROUPE_SI'] # People who can access the server
+SudoGrp: ['mongroupe_si_admin'] # People who can sudo on the server
+
+Reboot_Prompt:
+  - name: reboot
+    prompt: "Enter 'reboot' to continue"
+    private: no
+
+# DNS
+NameServers: [ '192.168.0.1']
+DomainSearch: mydomain.com
+ 

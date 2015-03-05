@@ -1,0 +1,7 @@
+---
+# Deploy common roles on all nodes
+- hosts: all
+  roles:
+  - common
+  sudo: yes
+
